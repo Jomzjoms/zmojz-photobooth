@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import FrameSelector from './components/FrameSelector';
-import CameraCapture from './components/CameraCapture';
-import FinalResult   from './components/FinalResult';
+import FrameSelector from './components/FrameSelector.jsx';
+import CameraCapture from './components/CameraCaptur.jsx';
+import FinalResult   from './components/FinalResult.jsx';
 
 const STEPS = { SELECT: 'SELECT', CAPTURE: 'CAPTURE', RESULT: 'RESULT' };
 
