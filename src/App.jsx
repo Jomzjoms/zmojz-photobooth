@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import HomePage      from './components/HomePage';
 import ShotSelector  from './components/ShotSelector';
-import CameraCapture from './components/CameraCapture';
-import FinalResult   from './components/FinalResult';
+import CameraCapture from './components/Cameracapture';
+import FinalResult   from './components/Finalresult';
 
 // Steps: HOME → SHOTS → CAPTURE → RESULT
 const STEPS = { HOME: 'HOME', SHOTS: 'SHOTS', CAPTURE: 'CAPTURE', RESULT: 'RESULT' };
