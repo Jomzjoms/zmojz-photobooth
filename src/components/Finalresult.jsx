@@ -1,20 +1,50 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GifEncoder } from './GifEncoder';
 
+// ─── Frame definitions ────────────────────────────────────────────────────────
+const FRAME_DEFS = {
+  3: [
+    { id: 'classic',  label: 'Classic',    path: '/option-1classic.png' },
+    { id: 'pat1',     label: 'Pattern 1',  path: '/option-1pat1.png'   },
+    { id: 'pat2',     label: 'Pattern 2',  path: '/option-1pat2.png'   },
+    { id: 'pat3',     label: 'Pattern 3',  path: '/option-1pat3.png'   },
+    { id: 'pat4',     label: 'Pattern 4',  path: '/option-1pat4.png'   },
+    { id: 'pat5',     label: 'Pattern 5',  path: '/option-1pat5.png'   },
+  ],
+  4: [
+    { id: 'classic',  label: 'Classic',    path: '/option-2classic.png' },
+    { id: 'pat1',     label: 'Pattern 1',  path: '/option-2pat1.png'   },
+    { id: 'pat2',     label: 'Pattern 2',  path: '/option-2pat2.png'   },
+    { id: 'pat3',     label: 'Pattern 3',  path: '/option-2pat3.png'   },
+    { id: 'pat4',     label: 'Pattern 4',  path: '/option-2pat4.png'   },
+    { id: 'pat5',     label: 'Pattern 5',  path: '/option-2pat5.png'   },
+  ],
+};
+
 const FRAME_SLOTS = {
-  'A': { canvasW: 600, canvasH: 1800, slots: [{ x: 55, y: 115, w: 490, h: 375 }, { x: 60, y: 530, w: 490, h: 375 }, { x: 55, y: 945, w: 490, h: 375 }] },
-  'B': { canvasW: 600, canvasH: 1800, slots: [{ x: 55, y: 115, w: 490, h: 375 }, { x: 60, y: 530, w: 490, h: 375 }, { x: 55, y: 945, w: 490, h: 375 }] },
-  'C': { canvasW: 600, canvasH: 1800, slots: [{ x: 50, y: 65, w: 500, h: 335 }, { x: 50, y: 440, w: 500, h: 335 }, { x: 50, y: 805, w: 500, h: 335 }, { x: 50, y: 1175, w: 500, h: 335 }] },
-  'D': { canvasW: 600, canvasH: 1800, slots: [{ x: 55, y: 65, w: 490, h: 335 }, { x: 55, y: 445, w: 490, h: 335 }, { x: 55, y: 825, w: 490, h: 335 }, { x: 55, y: 1205, w: 490, h: 335 }] },
+  3: { canvasW: 600, canvasH: 1800, slots: [
+    { x: 55, y: 115, w: 490, h: 375 },
+    { x: 60, y: 530, w: 490, h: 375 },
+    { x: 55, y: 945, w: 490, h: 375 }
+  ]},
+  4: { canvasW: 600, canvasH: 1800, slots: [
+    { x: 50, y: 65,   w: 500, h: 335 },
+    { x: 50, y: 440,  w: 500, h: 335 },
+    { x: 50, y: 805,  w: 500, h: 335 },
+    { x: 50, y: 1175, w: 500, h: 335 }
+  ]},
 };
 
 const GIF_W = 360, GIF_H = 270;
-const HOLD_FRAMES = 12, TRANSITION_FRAMES = 5, DELAY_CS = 8;
+const HOLD_FRAMES = 12, TRANSITION_FRAMES = 10, DELAY_CS = 8;
 
-export default function FinalResult({ frame, photos, onRetakeAll }) {
+export default function FinalResult({ photos, shotCount, onRetakeAll }) {
   const canvasRef        = useRef(null);
   const previewCanvasRef = useRef(null);
   const gifCanvasRef     = useRef(null);
+
+  const frames = FRAME_DEFS[shotCount] || FRAME_DEFS[3];
+  const [selectedFrame, setSelectedFrame] = useState(frames[0]);
 
   const [isRendering, setIsRendering] = useState(true);
   const [rendered,    setRendered]    = useState(false);
@@ -22,7 +52,7 @@ export default function FinalResult({ frame, photos, onRetakeAll }) {
   const [gifProgress, setGifProgress] = useState(0);
   const [gifUrl,      setGifUrl]      = useState(null);
 
-  const frameConfig = FRAME_SLOTS[frame.id];
+  const frameConfig = FRAME_SLOTS[shotCount] || FRAME_SLOTS[3];
 
   const loadImage = (src) => new Promise((resolve, reject) => {
     const img = new Image();
@@ -41,13 +71,14 @@ export default function FinalResult({ frame, photos, onRetakeAll }) {
     ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   };
 
-  const renderStrip = async (canvas) => {
+  const renderStrip = async (canvas, framePath) => {
     const ctx = canvas.getContext('2d');
     const { canvasW, canvasH, slots } = frameConfig;
     canvas.width  = canvasW;
     canvas.height = canvasH;
-    ctx.fillStyle = frame.theme === 'dark' ? '#0d0d0d' : '#f0f0f0';
+    ctx.fillStyle = '#f0f0f0';
     ctx.fillRect(0, 0, canvasW, canvasH);
+
     for (let i = 0; i < photos.length; i++) {
       const slot = slots[i];
       if (!slot) continue;
@@ -65,18 +96,20 @@ export default function FinalResult({ frame, photos, onRetakeAll }) {
       }
     }
     try {
-      const fi = await loadImage(frame.path);
+      const fi = await loadImage(framePath);
       ctx.drawImage(fi, 0, 0, canvasW, canvasH);
     } catch (e) { console.warn('Frame overlay missing:', e); }
   };
 
+  // Re-render whenever selected frame changes
   useEffect(() => {
     const run = async () => {
       setIsRendering(true);
+      setRendered(false);
       try {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        await renderStrip(canvas);
+        await renderStrip(canvas, selectedFrame.path);
         const preview = previewCanvasRef.current;
         if (preview) {
           const maxH  = Math.min(window.innerHeight * 0.6, 600);
@@ -90,126 +123,128 @@ export default function FinalResult({ frame, photos, onRetakeAll }) {
       setIsRendering(false);
     };
     run();
-  }, []);
+  }, [selectedFrame]);
 
   const handleDownload = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement('a');
     link.href     = canvas.toDataURL('image/png');
-    link.download = `photobooth-${frame.id}-${Date.now()}.png`;
+    link.download = `photobooth-${selectedFrame.id}-${Date.now()}.png`;
     link.click();
+  };
+
+  // ── FIXED: each photo fills the full GIF frame instead of appearing at its slot position
+  const drawSlide = async (gifCtx, photoIdx) => {
+    gifCtx.fillStyle = '#f0f0f0';
+    gifCtx.fillRect(0, 0, GIF_W, GIF_H);
+
+    if (!photos[photoIdx]) return;
+
+    try {
+      const img = await loadImage(photos[photoIdx]);
+      // Draw the photo covering the entire GIF canvas
+      drawCover(gifCtx, img, 0, 0, GIF_W, GIF_H);
+    } catch (e) {
+      gifCtx.fillStyle = '#141414';
+      gifCtx.fillRect(0, 0, GIF_W, GIF_H);
+    }
+  };
+
+  const handleGenerateGif = async () => {
+    setGifStatus('rendering');
+    setGifProgress(0);
+
+    try {
+      const gifCanvas = gifCanvasRef.current;
+      if (!gifCanvas) return;
+      gifCanvas.width  = GIF_W;
+      gifCanvas.height = GIF_H;
+      const gifCtx = gifCanvas.getContext('2d');
+
+      const encoder = new GifEncoder(GIF_W, GIF_H, { repeat: 0, delay: DELAY_CS });
+
+      let frameIdx = 0;
+      const totalFrames = photos.length * (HOLD_FRAMES + TRANSITION_FRAMES);
+
+      for (let photoIdx = 0; photoIdx < photos.length; photoIdx++) {
+        // Hold frames — show the photo for HOLD_FRAMES ticks
+        for (let hold = 0; hold < HOLD_FRAMES; hold++) {
+          await drawSlide(gifCtx, photoIdx);
+          const imageData = gifCtx.getImageData(0, 0, GIF_W, GIF_H);
+          encoder.addFrame(imageData.data);
+          frameIdx++;
+          setGifProgress(Math.round((frameIdx / totalFrames) * 100));
+        }
+
+        // Transition: smooth cross-fade, always runs for every photo including last→first (seamless loop)
+        {
+          const nextPhotoIdx = (photoIdx + 1) % photos.length;
+          const nextImg = await loadImage(photos[nextPhotoIdx]);
+
+          for (let t = 0; t < TRANSITION_FRAMES; t++) {
+            const progress = t / TRANSITION_FRAMES;
+            await drawSlide(gifCtx, photoIdx);
+            gifCtx.globalAlpha = progress;
+            drawCover(gifCtx, nextImg, 0, 0, GIF_W, GIF_H);
+            gifCtx.globalAlpha = 1;
+            const imageData = gifCtx.getImageData(0, 0, GIF_W, GIF_H);
+            encoder.addFrame(imageData.data);
+            frameIdx++;
+            setGifProgress(Math.round((frameIdx / totalFrames) * 100));
+          }
+        }
+      }
+
+      const gifBlob    = encoder.finish();
+      const gifDataUrl = URL.createObjectURL(gifBlob);
+      setGifUrl(gifDataUrl);
+      setGifStatus('ready');
+    } catch (e) {
+      console.error('GIF generation error:', e);
+      setGifStatus('error');
+    }
   };
 
   const handleDownloadGif = () => {
     if (!gifUrl) return;
     const link = document.createElement('a');
     link.href     = gifUrl;
-    link.download = `photobooth-${frame.id}-anim-${Date.now()}.gif`;
+    link.download = `photobooth-${selectedFrame.id}-${Date.now()}.gif`;
     link.click();
   };
-
-  const drawSlide = (ctx, img, alpha, shotIndex) => {
-    const pad = 14, iw = GIF_W - pad * 2, ih = GIF_H - pad * 2;
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, GIF_W, GIF_H);
-    ctx.globalAlpha = alpha;
-    ctx.save();
-    ctx.beginPath(); ctx.rect(pad, pad, iw, ih); ctx.clip();
-    drawCover(ctx, img, pad, pad, iw, ih);
-    ctx.restore();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = '#242424';
-    ctx.lineWidth   = 1;
-    ctx.strokeRect(pad, pad, iw, ih);
-    const tl = 7;
-    ctx.strokeStyle = '#484848';
-    ctx.lineWidth   = 1;
-    [[pad, pad], [GIF_W - pad, pad], [pad, GIF_H - pad], [GIF_W - pad, GIF_H - pad]].forEach(([cx, cy]) => {
-      const sx = cx === pad ? 1 : -1, sy = cy === pad ? 1 : -1;
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + sx * tl, cy); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + sy * tl); ctx.stroke();
-    });
-    ctx.fillStyle  = '#404040';
-    ctx.font       = '9px monospace';
-    ctx.textAlign  = 'right';
-    ctx.fillText(`${shotIndex + 1} / ${photos.length}`, GIF_W - pad - 3, GIF_H - pad - 3);
-    ctx.textAlign  = 'left';
-  };
-
-  const handleGenerateGif = useCallback(async () => {
-    setGifStatus('generating');
-    setGifProgress(0);
-    if (gifUrl) { URL.revokeObjectURL(gifUrl); setGifUrl(null); }
-
-    try {
-      const imgs = await Promise.all(photos.map(loadImage));
-      const offscreen = gifCanvasRef.current;
-      offscreen.width  = GIF_W;
-      offscreen.height = GIF_H;
-      const ctx = offscreen.getContext('2d');
-      const enc = new GifEncoder(GIF_W, GIF_H, { repeat: 0, delay: DELAY_CS });
-      const totalFrames = imgs.length * (HOLD_FRAMES + TRANSITION_FRAMES);
-      let done = 0;
-      const tick = () => new Promise(r => setTimeout(r, 0));
-
-      for (let i = 0; i < imgs.length; i++) {
-        const curr = imgs[i], next = imgs[(i + 1) % imgs.length];
-        for (let f = 0; f < HOLD_FRAMES; f++) {
-          drawSlide(ctx, curr, 1, i);
-          enc.addFrame(ctx.getImageData(0, 0, GIF_W, GIF_H).data);
-          done++;
-          if (f % 4 === 0) { setGifProgress(Math.round((done / totalFrames) * 90)); await tick(); }
-        }
-        for (let t = 0; t < TRANSITION_FRAMES; t++) {
-          const alphaOut = 1 - (t + 1) / (TRANSITION_FRAMES + 1);
-          const alphaIn  = 1 - alphaOut;
-          const pad = 14, iw = GIF_W - pad * 2, ih = GIF_H - pad * 2;
-          ctx.fillStyle = '#0a0a0a';
-          ctx.fillRect(0, 0, GIF_W, GIF_H);
-          ctx.globalAlpha = alphaIn;
-          ctx.save(); ctx.beginPath(); ctx.rect(pad, pad, iw, ih); ctx.clip();
-          drawCover(ctx, next, pad, pad, iw, ih); ctx.restore();
-          ctx.globalAlpha = alphaOut;
-          ctx.save(); ctx.beginPath(); ctx.rect(pad, pad, iw, ih); ctx.clip();
-          drawCover(ctx, curr, pad, pad, iw, ih); ctx.restore();
-          ctx.globalAlpha = 1;
-          ctx.strokeStyle = '#242424'; ctx.lineWidth = 1; ctx.strokeRect(pad, pad, iw, ih);
-          const tl = 7; ctx.strokeStyle = '#484848';
-          [[pad, pad], [GIF_W - pad, pad], [pad, GIF_H - pad], [GIF_W - pad, GIF_H - pad]].forEach(([cx, cy]) => {
-            const sx = cx === pad ? 1 : -1, sy = cy === pad ? 1 : -1;
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + sx * tl, cy); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + sy * tl); ctx.stroke();
-          });
-          enc.addFrame(ctx.getImageData(0, 0, GIF_W, GIF_H).data);
-          done++;
-          setGifProgress(Math.round((done / totalFrames) * 90));
-          await tick();
-        }
-      }
-
-      setGifProgress(95); await tick();
-      const blob = enc.finish();
-      const url  = URL.createObjectURL(blob);
-      setGifUrl(url);
-      setGifStatus('done');
-      setGifProgress(100);
-    } catch (e) {
-      console.error('GIF generation failed:', e);
-      setGifStatus('error');
-    }
-  }, [photos, frame, gifUrl]);
 
   return (
     <div className="fr-wrapper animate-fade-in-up" style={{ opacity: 0 }}>
       <canvas ref={canvasRef}    className="fr-hidden-canvas" />
       <canvas ref={gifCanvasRef} className="fr-hidden-canvas" />
 
-      {/* Header */}
       <div className="fr-header">
         <p className="font-mono-ui fr-eyebrow animate-flicker">— developed —</p>
         <h2 className="font-light-ui fr-title">Your Strip</h2>
         <div className="fr-divider" />
+      </div>
+
+      {/* ── Frame picker ─────────────────────────────────────────────── */}
+      <div className="fr-frame-picker">
+        <p className="font-mono-ui fr-picker-label">— select frame —</p>
+        <div className="fr-picker-scroll">
+          {frames.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setSelectedFrame(f)}
+              className={`fr-picker-btn font-mono-ui${selectedFrame.id === f.id ? ' fr-picker-btn--active' : ''}`}
+            >
+              <img
+                src={f.path}
+                alt={f.label}
+                className="fr-picker-thumb"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              <span className="fr-picker-name">{f.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Strip preview */}
@@ -236,84 +271,56 @@ export default function FinalResult({ frame, photos, onRetakeAll }) {
         </div>
       </div>
 
-      {/* GIF preview */}
-      {gifStatus === 'done' && gifUrl && (
-        <div className="fr-gif-preview animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.1s' }}>
-          <div className="fr-gif-header">
-            <p className="font-mono-ui fr-gif-eyebrow animate-flicker">— animated —</p>
-          </div>
-          <div className="fr-gif-center">
-            <div className="fr-gif-inner">
-              <img src={gifUrl} alt="Animated GIF" className="fr-gif-img" />
-              <div className="fr-corner-overlay">
-                <div className="fr-corner fr-corner--tl" />
-                <div className="fr-corner fr-corner--tr" />
-                <div className="fr-corner fr-corner--bl" />
-                <div className="fr-corner fr-corner--br" />
+      {/* GIF Preview */}
+      {(gifStatus === 'rendering' || gifStatus === 'ready') && (
+        <div className="fr-gif-preview-section animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.2s' }}>
+          <p className="font-mono-ui fr-gif-preview-label">— gif preview —</p>
+          <div className="fr-gif-preview-container">
+            {gifUrl && (
+              <img src={gifUrl} alt="GIF Preview" className="fr-gif-preview-image" />
+            )}
+            {gifStatus === 'rendering' && !gifUrl && (
+              <div className="fr-gif-placeholder animate-flicker">
+                <div className="font-mono-ui">generating...</div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Actions */}
+      {/* Action buttons */}
       {rendered && (
         <div className="fr-actions animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.3s' }}>
           <button onClick={handleDownload} className="btn-primary fr-btn-full">
             ↓ download png
           </button>
-
           {gifStatus === 'idle' && (
-            <button
-              onClick={handleGenerateGif}
-              className="btn-ghost fr-btn-full fr-btn-gif"
-            >
-              ▶ create animated gif
+            <button onClick={handleGenerateGif} className="btn-primary fr-btn-full">
+              ✨ generate gif
             </button>
           )}
-
-          {gifStatus === 'generating' && (
-            <div className="fr-gif-progress">
-              <div className="fr-gif-progress-header">
-                <span className="font-mono-ui fr-gif-encoding animate-flicker">encoding frames...</span>
-                <span className="font-mono-ui fr-gif-pct">{gifProgress}%</span>
+          {gifStatus === 'rendering' && (
+            <div className="fr-gif-status">
+              <div className="font-mono-ui fr-gif-text">generating gif...</div>
+              <div className="fr-progress-bar">
+                <div className="fr-progress-fill" style={{ width: `${gifProgress}%` }} />
               </div>
-              <div className="fr-gif-bar-track">
-                <div className="fr-gif-bar-fill" style={{ width: `${gifProgress}%` }} />
-              </div>
-              <p className="font-mono-ui fr-gif-warning">do not close this tab</p>
             </div>
           )}
-
-          {gifStatus === 'done' && gifUrl && (
-            <div className="fr-gif-done">
-              <button onClick={handleDownloadGif} className="btn-outline fr-btn-full">
-                ↓ download gif
-              </button>
-              <button onClick={() => { setGifStatus('idle'); setGifProgress(0); setGifUrl(null); }} className="fr-regen-btn font-mono-ui">
-                ↺ regenerate
-              </button>
-            </div>
+          {gifStatus === 'ready' && gifUrl && (
+            <button onClick={handleDownloadGif} className="btn-primary fr-btn-full">
+              ↓ download gif
+            </button>
           )}
-
           {gifStatus === 'error' && (
-            <div className="fr-gif-error">
-              <p className="font-mono-ui fr-gif-error-text">gif generation failed</p>
-              <button
-                onClick={() => { setGifStatus('idle'); setGifProgress(0); }}
-                className="font-mono-ui fr-retry-btn"
-              >
-                try again
-              </button>
-            </div>
+            <div className="font-mono-ui fr-error-text">gif generation failed</div>
           )}
-
           <button onClick={onRetakeAll} className="btn-ghost fr-btn-full">↺ start over</button>
         </div>
       )}
 
       <p className="font-mono-ui fr-footer-text">
-        frame {frame.id} · {frame.label} · {photos.length} shots
+        {selectedFrame.label} · {shotCount} shots
       </p>
     </div>
   );
